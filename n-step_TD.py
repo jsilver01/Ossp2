@@ -124,7 +124,7 @@ def n_step_td_learning(data, env, agent, Ns, gamma=1.0, alpha=0.1):  # alpha 값
                 x, y, reward, x_prime, y_prime = history[i]
                 G += (gamma ** (i - t)) * reward
             if t + Ns < T:
-                x, y, _, x_prime, y_prime = history[t + Ns]
+                x, y, _, x_prime, y_prime = history[t + Ns] 
                 G += (gamma ** Ns) * data[x_prime][y_prime]
             x, y, _, x_prime, y_prime = history[t]
             data[x][y] = data[x][y] + alpha * (G - data[x][y])
