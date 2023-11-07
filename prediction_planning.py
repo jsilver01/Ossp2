@@ -71,26 +71,23 @@ class Agent():
             action = 3
         return action
 
-# Dynamic Programming (DP)
-def dynamic_planning(data, env, agent, gamma=1.0, theta=0.01):
-    while True:
+def dynamic_planning(data, env, gamma=1.0, max_iters=1000,theta=0.01):
+    for _ in range(max_iters):
         delta = 0
         for x in range(4):
             for y in range(4):
                 v = data[x][y]
                 new_v = 0
                 for a in range(4):
-                    # 새로운 상태, 보상 및 완료 여부 얻기
+                    env.x, env.y = x, y  # 환경의 위치를 초기 상태로 설정
                     (x_prime, y_prime), reward, _ = env.step(a)
-                    # 에이전트가 선택한 행동 사용
-                new_v += (1/4) * (reward + gamma * data[x_prime][y_prime])
+                    new_v += (reward + gamma * data[x_prime][y_prime]) / 4  # 모든 가능한 행동에 대한 평균 계산
                 data[x][y] = new_v
                 delta = max(delta, abs(v - data[x][y]))
         if delta < theta:
             break
 
-# Monte Carlo (MC)
-def monte_carlo(data, env, agent, gamma=1.0, alpha=0.01):
+def monte_carlo(data, env, agent, gamma=1.0, alpha=0.1):  # alpha 값을 0.1로 조정
     for k in range(50000):
         done = False
         history = []
@@ -107,8 +104,7 @@ def monte_carlo(data, env, agent, gamma=1.0, alpha=0.01):
             data[x][y] = data[x][y] + alpha * (cum_reward - data[x][y])
             cum_reward = reward + gamma * cum_reward
 
-# n-Step TD Learning
-def n_step_td_learning(data, env, agent, Ns, gamma=1.0, alpha=0.01):
+def n_step_td_learning(data, env, agent, Ns, gamma=1.0, alpha=0.1):  # alpha 값을 0.1로 조정
     for k in range(50000):
         done = False
         history = []
@@ -129,7 +125,7 @@ def n_step_td_learning(data, env, agent, Ns, gamma=1.0, alpha=0.01):
                 x, y, reward, x_prime, y_prime = history[i]
                 G += (gamma ** (i - t)) * reward
             if t + Ns < T:
-                x, y, _, x_prime, y_prime = history[t + Ns]
+                x, y, _, x_prime, y_prime = history[t + Ns] 
                 G += (gamma ** Ns) * data[x_prime][y_prime]
             x, y, _, x_prime, y_prime = history[t]
             data[x][y] = data[x][y] + alpha * (G - data[x][y])
@@ -140,14 +136,13 @@ def main():
     Ne_values = [100, 1000, 10000]
     learning_methods = ["DP", "MC", "1-Step TD", "3-Step TD"]
 
-    results = {method: {Ne: [] for Ne in Ne_values} for method in learning_methods}
-
     for Ne in Ne_values:
         for method in learning_methods:
-            data = np.zeros((4, 4))
-
+            
+            data = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]  # DP의 초기화 값을 0.0으로 설정
+            
             if method == "DP":
-                dynamic_planning(data, env, agent)
+                dynamic_planning(data, env)
             elif method == "MC":
                 monte_carlo(data, env, agent)
             elif "1-Step TD" in method:
@@ -157,49 +152,47 @@ def main():
                 Ns = 3
                 n_step_td_learning(data, env, agent, Ns)
 
-            results[method][Ne] = data
+            if "DP" in method:
+                # "Compare V(s) of all learning methods" 그래프 생성
+                plt.figure()
+                for x in range(4):
+                    plt.plot(range(4), data[x], marker='o', label=f"{method} (Ne={Ne})")
+                plt.title(f"Method: {method}, Ne: {Ne}")
+                plt.xlabel('Column')
+                plt.ylabel('Value')
+                plt.xticks(range(4))
+                plt.legend()
+                plt.grid(True)
+                plt.show()
+            else:
+                
+                # "Compare V(s) of all learning methods" 그래프의 결과 데이터 저장
+                v_data = np.array(data)
 
+                if "MC" in method:
+                    mc_v_data = v_data
+                elif "1-Step TD" in method:
+                    td1_v_data = v_data
+                elif "3-Step TD" in method:
+                    td3_v_data = v_data
+
+    # "Compare variance or bias of V(s) of MC, 1-step TD, 3-step TD for Ne = 100, 1000, 10000" 그래프 생성
     for Ne in Ne_values:
-        DP_data = np.array(results["DP"][Ne])
-        MC_data = np.array(results["MC"][Ne])
-        TD1_data = np.array(results["1-Step TD"][Ne])
-        TD3_data = np.array(results["3-Step TD"][Ne])
-
-        # V(s) 값 비교 그래프
-        plt.figure(figsize=(10, 6))
-        plt.plot(range(16), DP_data.flatten(), label='DP')
-        plt.plot(range(16), MC_data.flatten(), label='MC')
-        plt.plot(range(16), TD1_data.flatten(), label='1-Step TD')
-        plt.plot(range(16), TD3_data.flatten(), label='3-Step TD')
-        plt.xlabel('States')
-        plt.ylabel('Value')
-        plt.title(f'V(s) Comparison for Ne = {Ne}')
+        plt.figure()
+        for v_data, method in zip([mc_v_data, td1_v_data, td3_v_data], ["MC", "1-Step TD", "3-Step TD"]):
+            avg_v_s = np.mean(v_data, axis=0)
+            variance = np.var(v_data, axis=0)
+            bias = np.abs(avg_v_s - avg_v_s[-1])  # V(3,3)의 추정값과의 차이를 bias로 계산
+            label = f"{method} (Ne={Ne})"
+            if method == "MC":
+                label = "Monte Carlo"
+            plt.plot(range(4), variance, marker='o', label=label)
+        plt.title(f"Compare Variance or Bias for Ne={Ne}")
+        plt.xlabel('Column')
+        plt.ylabel('Variance or Bias')
+        plt.xticks(range(4))
         plt.legend()
-        plt.show()
-
-        # Bias 및 Variance 계산
-        methods_data = [MC_data, TD1_data, TD3_data]
-        method_names = ['MC', '1-Step TD', '3-Step TD']
-
-        biases = []
-        variances = []
-        for data in methods_data:
-            biases.append(np.mean(np.abs(data - DP_data)))
-            variances.append(np.var(data - DP_data))
-
-        # Bias 및 Variance 막대 그래프
-        plt.figure(figsize=(8, 5))
-        plt.bar(method_names, biases, color='skyblue')
-        plt.xlabel('Methods')
-        plt.ylabel('Bias')
-        plt.title(f'Bias Comparison for Ne = {Ne}')
-        plt.show()
-
-        plt.figure(figsize=(8, 5))
-        plt.bar(method_names, variances, color='salmon')
-        plt.xlabel('Methods')
-        plt.ylabel('Variance')
-        plt.title(f'Variance Comparison for Ne = {Ne}')
+        plt.grid(True)
         plt.show()
 
 if __name__ == '__main__':
