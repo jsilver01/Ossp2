@@ -135,7 +135,6 @@ def main():
     agent = Agent()
     Ne_values = [100, 1000, 10000]
     learning_methods = ["DP", "MC", "1-Step TD", "3-Step TD"]
-
     for Ne in Ne_values:
         for method in learning_methods:
             
